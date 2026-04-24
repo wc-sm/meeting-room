@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALR Room Booking Tracker – WCSM</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Atkinson Hyperlegible', system-ui, -apple-system, sans-serif;
+      background: #f3f4f6;
+      color: #1a1a1a;
+      min-height: 100vh;
+      padding: 1.5rem 1rem 3rem;
+    }
+
+    /* ── Layout ── */
+    .wrap   { max-width: 700px; margin: 0 auto; }
+    .card   { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 12px; }
+
+    /* ── Header ── */
+    .header {
+      background: #3A5E4A;
+      border-radius: 12px;
+      padding: 1.1rem 1.4rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .header-sub  { color: #C8921A; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 3px; }
+    .header-title{ color: #fff; font-size: 17px; font-weight: 500; }
+    .header-meta { font-size: 11px; color: rgba(255,255,255,0.6); }
+
+    /* ── Quarter tabs ── */
+    .tabs { display: flex; gap: 7px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+    .tab  {
+      background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+      padding: 4px 12px; font-size: 13px; cursor: pointer; font-family: inherit; color: #4b5563;
+      transition: background 0.15s, color 0.15s;
+    }
+    .tab.active { background: #3A5E4A; color: #fff; border-color: #3A5E4A; }
+    .tab-range  { font-size: 12px; color: #6b7280; }
+
+    /* ── Status banner ── */
+    .banner       { border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+    .banner.error { background: #fdf0ee; }
+    .banner.warn  { background: #fef9e7; }
+    .banner.ok    { background: #f0fdf4; }
+    .banner-dot   { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .banner-text  { font-size: 13px; font-weight: 500; }
+    .banner-ts    { margin-left: auto; font-size: 11px; color: #9ca3af; }
+
+    /* ── Stats grid ── */
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 12px; }
+    .stat  { background: #f9fafb; border-radius: 8px; padding: 0.8rem 0.9rem; }
+    .stat.alert { background: #fdf0ee; }
+    .stat-label { font-size: 11px; color: #6b7280; margin-bottom: 3px; }
+    .stat.alert .stat-label { color: #922b21; }
+    .stat-val   { font-size: 19px; font-weight: 500; color: #111827; line-height: 1.2; }
+    .stat.alert .stat-val   { color: #922b21; }
+    .stat-sub   { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .stat.alert .stat-sub   { color: #c0392b; }
+
+    /* ── Progress bar ── */
+    .prog-bar-wrap { background: #f9fafb; border-radius: 6px; height: 14px; overflow: hidden; position: relative; }
+    .prog-bar      { height: 100%; border-radius: 6px; transition: width 0.4s; }
+    .prog-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: rgba(255,255,255,0.28); }
+    .prog-labels   { display: flex; justify-content: space-between; font-size: 11px; color: #9ca3af; margin-top: 5px; }
+
+    /* ── Bookings list ── */
+    .bookings-title { font-size: 14px; font-weight: 500; color: #111827; margin-bottom: 12px; }
+    .date-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .date-label{ font-size: 12px; font-weight: 500; color: #374151; }
+    .date-label.over    { color: #922b21; }
+    .date-label.noshow  { color: #9ca3af; }
+    .date-meta { font-size: 11px; color: #9ca3af; }
+    .date-charge{ font-size: 11px; color: #b03a2e; font-weight: 500; margin-left: auto; }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; align-items: center; }
+    .chip  { border-radius: 6px; padding: 3px 9px; font-size: 12px; }
+    .chip.within  { background: #E8F2EC; color: #2d5c3e; }
+    .chip.over    { background: rgba(176,58,46,0.12); color: #922b21; font-weight: 500; }
+    .chip.noshow  { background: #f3f4f6; color: #9ca3af; text-decoration: line-through; opacity: 0.6; }
+
+    /* ── Dividers ── */
+    .divider { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+    .divider-line  { flex: 1; height: 1px; }
+    .divider-line.cutoff  { background: #e74c3c; }
+    .divider-line.upcoming{ background: #d1d5db; }
+    .divider-badge {
+      font-size: 11px; font-weight: 500; padding: 2px 10px; border-radius: 10px;
+      white-space: nowrap;
+    }
+    .divider-badge.cutoff  { background: #e74c3c; color: #fff; }
+    .divider-badge.upcoming{ color: #9ca3af; }
+
+    /* ── Footer note ── */
+    .footer-note { margin-top: 12px; padding-top: 10px; border-top: 1px solid #f3f4f6; font-size: 12px; color: #9ca3af; }
+
+    /* ── Loading / error states ── */
+    .loading { text-align: center; padding: 4rem 1rem; color: #6b7280; font-size: 14px; }
+    .fetch-error { background: #fdf0ee; border-radius: 10px; padding: 1rem; color: #922b21; font-size: 13px; }
+
+    @media (max-width: 500px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="loading">Loading booking data…</div>
+</div>
+
+<script>
+'use strict';
+
+/* ── Constants ─────────────────────────────────────────────────────────────── */
+const ALLOWANCE      = 50;   // 25 hours × 2 slots per hour
+const HOURLY_RATE    = 80;
+const RATE_PER_SLOT  = HOURLY_RATE / 2;  // £40
+
+/* ── Helpers ────────────────────────────────────────────────────────────────── */
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London'
+  });
+}
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString('en-GB', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London'
+  });
+}
+function endTime(startIso) {
+  return fmtTime(new Date(new Date(startIso).getTime() + 30 * 60000).toISOString());
+}
+function charge(slots) {
+  return '£' + (slots * RATE_PER_SLOT).toFixed(0);
+}
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+    if (k === 'className') e.className = v;
+    else if (k === 'innerHTML') e.innerHTML = v;
+    else e.setAttribute(k, v);
+  });
+  children.flat(Infinity).forEach(c => {
+    if (c == null) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+
+/* ── Group slots by date ─────────────────────────────────────────────────────
+   Returns an array of groups, each with:
+     date          – formatted date string
+     slots         – all slot objects (active + no-show)
+     countedInGroup– number of non-no-show slots
+     startCount    – 1-based position of first counted slot in this group
+     endCount      – 1-based position of last counted slot in this group
+*/
+function buildGroups(slots) {
+  const byDate = {};
+  slots.forEach(slot => {
+    const k = fmtDate(slot.start);
+    if (!byDate[k]) byDate[k] = [];
+    byDate[k].push(slot);
+  });
+  let running = 0;
+  return Object.entries(byDate).map(([date, slotArr]) => {
+    const counted = slotArr.filter(s => !s.noShow).length;
+    const startCount = running + 1;
+    running += counted;
+    return { date, slots: slotArr, countedInGroup: counted, startCount, endCount: running };
+  });
+}
+
+/* ── Render a quarter view ───────────────────────────────────────────────────── */
+function renderQuarter(qData) {
+  if (qData.fetchError) {
+    return el('div', { className: 'fetch-error' },
+      'Could not load data for this quarter: ' + qData.fetchError
+    );
+  }
+
+  const now     = new Date();
+  const groups  = buildGroups(qData.slots);
+  const counted = qData.slots.filter(s => !s.noShow).length;
+  const noShows = qData.slots.filter(s =>  s.noShow).length;
+  const overage = Math.max(0, counted - ALLOWANCE);
+  const hoursUsed = counted / 2;
+  const pct     = Math.min(100, Math.round(counted / ALLOWANCE * 100));
+  const barColor = overage > 0 ? '#b03a2e' : pct >= 80 ? '#ca6f1e' : '#2d7a55';
+
+  const statusLabel = overage > 0
+    ? 'Allowance exceeded \u2013 ' + (overage / 2).toFixed(1) + ' hrs over (' + overage + ' slots)'
+    : pct >= 80
+      ? 'Approaching limit \u2013 ' + (ALLOWANCE - counted) + ' slots remaining'
+      : 'Within allowance \u2013 ' + (ALLOWANCE - counted) + ' slots remaining';
+  const statusClass = overage > 0 ? 'error' : pct >= 80 ? 'warn' : 'ok';
+  const dotColor    = overage > 0 ? '#b03a2e' : pct >= 80 ? '#ca6f1e' : '#27ae60';
+  const textColor   = dotColor;
+
+  /* Generated-at timestamp */
+  const ts = qData._generated_at
+    ? new Date(qData._generated_at).toLocaleString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London'
+      })
+    : null;
+
+  /* ── Banner ── */
+  const banner = el('div', { className: 'banner ' + statusClass },
+    el('div', { className: 'banner-dot', style: 'background:' + dotColor }),
+    el('div', { className: 'banner-text', style: 'color:' + textColor }, statusLabel),
+    ts ? el('div', { className: 'banner-ts' }, 'Updated ' + ts) : null
+  );
+
+  /* ── Stats ── */
+  const statDefs = [
+    { label: 'Slots used',     val: counted + ' / 50',           sub: counted + ' counted \u00d7 30 min',              alert: false },
+    { label: 'Hours used',     val: hoursUsed.toFixed(1) + ' / 25', sub: 'of quarterly allowance',                     alert: false },
+    { label: 'Overage',        val: (overage / 2).toFixed(1) + ' hrs', sub: overage + ' chargeable slots',             alert: overage > 0 },
+    { label: 'Overage charge', val: charge(overage),              sub: 'at \u00a3' + HOURLY_RATE + '/hr (\u00a3' + RATE_PER_SLOT + '/slot)', alert: overage > 0 },
+  ];
+  const statsEl = el('div', { className: 'stats' },
+    ...statDefs.map(s => el('div', { className: 'stat' + (s.alert ? ' alert' : '') },
+      el('div', { className: 'stat-label' }, s.label),
+      el('div', { className: 'stat-val'   }, s.val),
+      el('div', { className: 'stat-sub'   }, s.sub)
+    ))
+  );
+
+  /* ── Progress bar ── */
+  const fillPct = (ALLOWANCE / Math.max(counted, ALLOWANCE)) * 100;
+  const progCard = el('div', { className: 'card' },
+    el('div', { style: 'display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;margin-bottom:6px' },
+      el('span', null, '0 hrs'),
+      el('span', { style: 'font-weight:500;color:#4b5563' }, '25 hr allowance')
+    ),
+    el('div', { className: 'prog-bar-wrap' },
+      el('div', { className: 'prog-bar', style: 'width:100%;background:' + barColor }),
+      counted > ALLOWANCE
+        ? el('div', { className: 'prog-bar-fill', style: 'width:' + fillPct.toFixed(1) + '%' })
+        : null
+    ),
+    el('div', { className: 'prog-labels' },
+      el('span', null, hoursUsed.toFixed(1) + ' hrs used (' + pct + '%)'),
+      overage > 0
+        ? el('span', { style: 'color:#b03a2e;font-weight:500' }, (overage / 2).toFixed(1) + ' hrs over')
+        : el('span', null, (ALLOWANCE - counted) + ' slots remaining')
+    )
+  );
+
+  /* ── Bookings list ── */
+  const listEl    = el('div', null);
+  let cutoffDone  = false;
+
+  groups.forEach((g, gi) => {
+    const isPast        = new Date(g.slots[0].start) < now;
+    const isAllNoShow   = g.countedInGroup === 0;
+    const entirelyOver  = g.startCount > ALLOWANCE;
+    const crossesBound  = !entirelyOver && g.endCount > ALLOWANCE;
+    const prevGroup     = gi > 0 ? groups[gi - 1] : null;
+    const chargeableHere= Math.max(0, g.endCount - Math.max(ALLOWANCE, g.startCount - 1));
+
+    /* Upcoming separator */
+    if (prevGroup && new Date(prevGroup.slots[0].start) < now && !isPast) {
+      const sep = el('div', { className: 'divider' },
+        el('div', { className: 'divider-line upcoming' }),
+        el('div', { className: 'divider-badge upcoming' }, 'upcoming'),
+        el('div', { className: 'divider-line upcoming' })
+      );
+      listEl.appendChild(sep);
+    }
+
+    /* Allowance-reached divider (between groups, when entire group is over) */
+    if (!cutoffDone && entirelyOver) {
+      cutoffDone = true;
+      listEl.appendChild(el('div', { className: 'divider' },
+        el('div', { className: 'divider-line cutoff' }),
+        el('div', { className: 'divider-badge cutoff' }, '25-hour allowance reached'),
+        el('div', { className: 'divider-line cutoff' })
+      ));
+    }
+
+    /* Date header row */
+    const dateLabel = el('div', {
+      className: 'date-label' + (isAllNoShow ? ' noshow' : entirelyOver ? ' over' : '')
+    }, g.date);
+
+    const dateMeta = isAllNoShow
+      ? el('div', { className: 'date-meta', style: 'font-style:italic' }, 'no-show \u2013 not counted')
+      : el('div', { className: 'date-meta' },
+          !entirelyOver
+            ? 'slots ' + g.startCount + (g.countedInGroup > 1 ? '\u2013' + g.endCount : '') + ' \u00b7 ' + g.endCount + ' total \u00b7 ' + (g.endCount / 2).toFixed(1) + ' hrs'
+            : 'slots ' + g.startCount + '\u2013' + g.endCount + ' \u00b7 all chargeable'
+        );
+
+    const dateCharge = chargeableHere > 0
+      ? el('div', { className: 'date-charge' }, charge(chargeableHere))
+      : null;
+
+    const dateRow = el('div', { className: 'date-row' }, dateLabel, dateMeta, dateCharge);
+
+    /* Chips */
+    const chipsEl  = el('div', { className: 'chips' });
+    let countedSoFar = 0;
+
+    g.slots.forEach((sl, si) => {
+      const absPos = sl.noShow ? null : g.startCount + countedSoFar;
+      const isOver = absPos !== null && absPos > ALLOWANCE;
+
+      /* Inline cut-off banner when boundary falls mid-date */
+      if (crossesBound && absPos !== null && absPos === ALLOWANCE + 1 && !cutoffDone) {
+        cutoffDone = true;
+        chipsEl.appendChild(el('div', {
+          style: 'width:100%;display:flex;align-items:center;gap:8px;margin:4px 0'
+        },
+          el('div', { className: 'divider-line cutoff' }),
+          el('div', { className: 'divider-badge cutoff' }, '25-hour allowance reached'),
+          el('div', { className: 'divider-line cutoff' })
+        ));
+      }
+
+      const chipClass = sl.noShow ? 'chip noshow' : isOver ? 'chip over' : 'chip within';
+      const label = fmtTime(sl.start) + ' \u2013 ' + endTime(sl.start) + (sl.noShow ? ' (no-show)' : '');
+      chipsEl.appendChild(el('span', { className: chipClass }, label));
+
+      if (!sl.noShow) countedSoFar++;
+    });
+
+    const groupEl = el('div', null, dateRow, chipsEl);
+    listEl.appendChild(groupEl);
+  });
+
+  /* Footer note */
+  const footerParts = [];
+  if (noShows > 0)
+    footerParts.push(noShows + ' no-show slot' + (noShows > 1 ? 's' : '') + ' excluded from tally.');
+  if (qData.cancelledCount > 0)
+    footerParts.push(qData.cancelledCount + ' cancellation' + (qData.cancelledCount > 1 ? 's' : '') + ' not counted.');
+  footerParts.push('Overage charged at \u00a3' + HOURLY_RATE + '/hr (\u00a3' + RATE_PER_SLOT + ' per 30-min slot).');
+
+  const footerEl = el('div', { className: 'footer-note' }, footerParts.join(' '));
+
+  const bookingsCard = el('div', { className: 'card' },
+    el('div', { className: 'bookings-title' }, 'Bookings \u2013 ' + qData.label),
+    listEl,
+    footerEl
+  );
+
+  return el('div', null, banner, statsEl, progCard, bookingsCard);
+}
+
+/* ── Main render ─────────────────────────────────────────────────────────────── */
+async function init() {
+  const app = document.getElementById('app');
+
+  let raw;
+  try {
+    const resp = await fetch('./data.json');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    raw = await resp.json();
+  } catch (e) {
+    app.innerHTML = '';
+    app.appendChild(el('div', { className: 'fetch-error' },
+      'Could not load data.json: ' + e.message +
+      '. The GitHub Action may not have run yet. Try refreshing in a few minutes.'
+    ));
+    return;
+  }
+
+  /* Attach generated_at to each quarter for display */
+  raw.quarters.forEach(q => q._generated_at = raw.generated_at);
+
+  /* Current quarter index */
+  const now = Date.now();
+  let currentQIdx = raw.quarters.findIndex(
+    q => now >= new Date(q.start) && now <= new Date(q.end)
+  );
+  if (currentQIdx < 0) currentQIdx = 0;
+
+  let activeIdx = currentQIdx;
+
+  function render() {
+    app.innerHTML = '';
+
+    /* Header */
+    app.appendChild(el('div', { className: 'header' },
+      el('div', null,
+        el('div', { className: 'header-sub' }, 'Worshipful Company of Spectacle Makers'),
+        el('div', { className: 'header-title' }, 'Art Loss Register \u2013 room booking tracker')
+      ),
+      el('div', { className: 'header-meta' }, 'Room booking allowance tracker')
+    ));
+
+    /* Quarter tabs */
+    const tabsEl = el('div', { className: 'tabs' });
+    raw.quarters.forEach((q, i) => {
+      const tab = el('button', {
+        className: 'tab' + (i === activeIdx ? ' active' : ''),
+      }, q.label + (i === currentQIdx ? ' \u25cf' : ''));
+      tab.addEventListener('click', () => { activeIdx = i; render(); });
+      tabsEl.appendChild(tab);
+    });
+    tabsEl.appendChild(el('span', { className: 'tab-range' }, raw.quarters[activeIdx].display));
+    app.appendChild(tabsEl);
+
+    /* Quarter content */
+    app.appendChild(renderQuarter(raw.quarters[activeIdx]));
+  }
+
+  render();
+}
+
+init();
+</script>
+</body>
+</html>
