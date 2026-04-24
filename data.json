@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-24T15:02:51.254Z",
+  "generated_at": "2026-04-24T15:06:08.242Z",
   "quarters": [
     {
       "label": "Q1 2026",
@@ -263,6 +263,11 @@
           "noShow": false
         },
         {
+          "start": "2026-04-27T08:00:00.000000Z",
+          "end": "2026-04-27T08:30:00.000000Z",
+          "noShow": false
+        },
+        {
           "start": "2026-04-28T08:30:00.000000Z",
           "end": "2026-04-28T09:00:00.000000Z",
           "noShow": false
@@ -361,8 +366,7 @@
       "start": "2026-06-09T00:00:00Z",
       "end": "2026-09-08T23:59:59Z",
       "slots": [],
-      "cancelledCount": 0,
-      "fetchError": "HTTP 429 from https://api.calendly.com/scheduled_events?organization=https%3A%2F%2Fapi.calendly.com%2Forganizations%2F339beecf-bf24-4bf1-89eb-547428fbf728&count=100&sort=start_time:asc&min_start_time=2026-06-09T00%3A00%3A00Z&max_start_time=2026-09-08T23%3A59%3A59Z: "
+      "cancelledCount": 0
     },
     {
       "label": "Q3 2026",
