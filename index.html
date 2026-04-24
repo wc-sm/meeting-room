@@ -362,7 +362,7 @@ async function init() {
 
   let raw;
   try {
-    const resp = await fetch('./data.json');
+    const resp = await fetch('./data.json?v=' + Date.now());
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     raw = await resp.json();
   } catch (e) {
