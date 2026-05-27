@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T08:57:22.240Z",
+  "generated_at": "2026-05-27T16:31:21.078Z",
   "quarters": [
     {
       "label": "Q1 2026",
@@ -373,16 +373,6 @@
           "noShow": false
         },
         {
-          "start": "2026-05-27T15:00:00.000000Z",
-          "end": "2026-05-27T15:30:00.000000Z",
-          "noShow": false
-        },
-        {
-          "start": "2026-05-27T15:30:00.000000Z",
-          "end": "2026-05-27T16:00:00.000000Z",
-          "noShow": false
-        },
-        {
           "start": "2026-05-29T10:00:00.000000Z",
           "end": "2026-05-29T10:30:00.000000Z",
           "noShow": false
@@ -473,7 +463,7 @@
           "noShow": false
         }
       ],
-      "cancelledCount": 5
+      "cancelledCount": 7
     },
     {
       "label": "Q2 2026",
