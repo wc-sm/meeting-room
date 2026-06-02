@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 /**
- * fetch_data.js  (v4)
+ * fetch_data.js  (v5)
  *
- * Changes from v3:
- *  - Only checks invitees (for no-show status) on PAST events. Future events
- *    cannot be no-shows, so those API calls were wasted and contributed to
- *    rate-limit errors.
- *  - Processes invitee calls in batches of 10 with a 2-second pause between
- *    each batch, giving Calendly's rate-limit window time to recover.
- *  - More generous retry backoff on 429: 5s, 10s, 20s.
+ * Fix from v4: pagination now uses Calendly's returned next_page URL directly,
+ * rather than reconstructing a URL from next_page_token. This avoids HTTP 400
+ * errors caused by token encoding issues when Q1 exceeds 100 events.
  */
 
 'use strict';
@@ -32,9 +28,9 @@ const QUARTERS = [
   { label: 'Q4 2026/27', display: '9 Dec \u2013 8 Mar 2027',  start: '2026-12-09T00:00:00Z', end: '2027-03-08T23:59:59Z' },
 ];
 
-const BATCH_SIZE       = 10;   // invitee calls per batch
-const BATCH_PAUSE_MS   = 2000; // pause between batches (ms)
-const CALL_INTERVAL_MS = 150;  // pause between individual calls within a batch (ms)
+const BATCH_SIZE       = 10;
+const BATCH_PAUSE_MS   = 2000;
+const CALL_INTERVAL_MS = 150;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +38,6 @@ function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
 }
 
-// HTTP GET with automatic retry on 429, using longer backoff than v3.
 async function apiGet(url, attempt = 1) {
   return new Promise((resolve, reject) => {
     https.get(url, {
@@ -61,16 +56,16 @@ async function apiGet(url, attempt = 1) {
             await sleep(wait);
             try { resolve(await apiGet(url, attempt + 1)); } catch (e) { reject(e); }
           } else {
-            reject(new Error(`HTTP 429 (rate limited) after 4 retries for ${url}`));
+            reject(new Error(`HTTP 429 after 4 retries: ${url}`));
           }
           return;
         }
         if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode} from ${url}: ${body.slice(0, 200)}`));
+          reject(new Error(`HTTP ${res.statusCode} from ${url}: ${body.slice(0, 300)}`));
           return;
         }
         try   { resolve(JSON.parse(body)); }
-        catch (e) { reject(new Error(`JSON parse error for ${url}: ${e.message}`)); }
+        catch (e) { reject(new Error(`JSON parse error: ${e.message}`)); }
       });
     }).on('error', reject);
   });
@@ -80,20 +75,28 @@ async function apiGet(url, attempt = 1) {
 
 async function fetchAllEvents(minStart, maxStart) {
   const events = [];
-  let pageToken = null;
-  do {
-    let url =
-      `https://api.calendly.com/scheduled_events` +
-      `?organization=${encodeURIComponent(ORG_URI)}` +
-      `&count=100` +
-      `&sort=start_time:asc` +
-      `&min_start_time=${encodeURIComponent(minStart)}` +
-      `&max_start_time=${encodeURIComponent(maxStart)}`;
-    if (pageToken) url += `&page_token=${encodeURIComponent(pageToken)}`;
-    const data = await apiGet(url);
+  let page = 1;
+
+  // Build the first-page URL ourselves; for subsequent pages use Calendly's
+  // returned next_page URL directly – no token reconstruction needed.
+  let nextUrl =
+    `https://api.calendly.com/scheduled_events` +
+    `?organization=${encodeURIComponent(ORG_URI)}` +
+    `&count=100` +
+    `&sort=start_time:asc` +
+    `&min_start_time=${encodeURIComponent(minStart)}` +
+    `&max_start_time=${encodeURIComponent(maxStart)}`;
+
+  while (nextUrl) {
+    console.log(`  Fetching page ${page}...`);
+    const data = await apiGet(nextUrl);
     events.push(...data.collection);
-    pageToken = data.pagination.next_page_token || null;
-  } while (pageToken);
+    console.log(`  Page ${page}: ${data.collection.length} events (${events.length} total so far).`);
+    // Use the full URL Calendly gives us – don't reconstruct from token
+    nextUrl = data.pagination.next_page || null;
+    page++;
+  }
+
   return events;
 }
 
@@ -113,15 +116,12 @@ async function processQuarter(q) {
   const allEvents      = await fetchAllEvents(q.start, q.end);
   const activeEvents   = allEvents.filter(e => e.status === 'active');
   const cancelledCount = allEvents.filter(e => e.status === 'canceled').length;
-
-  // Split active events into past (eligible for no-show) and future (skip invitee check)
-  const pastEvents   = activeEvents.filter(e => new Date(e.start_time) <  now);
-  const futureEvents = activeEvents.filter(e => new Date(e.start_time) >= now);
+  const pastEvents     = activeEvents.filter(e => new Date(e.start_time) <  now);
+  const futureEvents   = activeEvents.filter(e => new Date(e.start_time) >= now);
 
   console.log(`[${q.label}] ${activeEvents.length} active (${pastEvents.length} past, ${futureEvents.length} upcoming), ${cancelledCount} cancelled.`);
-  console.log(`[${q.label}] Checking invitees for ${pastEvents.length} past event(s) only (future events cannot be no-shows).`);
+  console.log(`[${q.label}] Checking invitees for ${pastEvents.length} past event(s) only.`);
 
-  // Check past events for no-show status, in batches
   const noShowSet = new Set();
   for (let i = 0; i < pastEvents.length; i += BATCH_SIZE) {
     const batch = pastEvents.slice(i, i + BATCH_SIZE);
@@ -131,25 +131,15 @@ async function processQuarter(q) {
       if (noShow) noShowSet.add(batch[j].uri);
       if (j < batch.length - 1) await sleep(CALL_INTERVAL_MS);
     }
-    // Pause between batches (skip after the last one)
     if (i + BATCH_SIZE < pastEvents.length) {
-      console.log(`[${q.label}] Batch complete. Pausing ${BATCH_PAUSE_MS / 1000}s...`);
+      console.log(`[${q.label}] Pausing ${BATCH_PAUSE_MS / 1000}s between batches...`);
       await sleep(BATCH_PAUSE_MS);
     }
   }
 
-  // Build slot list: past events with no-show status, future events always noShow:false
   const slots = [
-    ...pastEvents.map(e => ({
-      start:  e.start_time,
-      end:    e.end_time,
-      noShow: noShowSet.has(e.uri),
-    })),
-    ...futureEvents.map(e => ({
-      start:  e.start_time,
-      end:    e.end_time,
-      noShow: false,
-    })),
+    ...pastEvents.map(e  => ({ start: e.start_time, end: e.end_time, noShow: noShowSet.has(e.uri) })),
+    ...futureEvents.map(e => ({ start: e.start_time, end: e.end_time, noShow: false })),
   ].sort((a, b) => new Date(a.start) - new Date(b.start));
 
   const counted = slots.filter(s => !s.noShow).length;
@@ -161,7 +151,7 @@ async function processQuarter(q) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('=== ALR Booking Data Fetch (v4) ===');
+  console.log('=== ALR Booking Data Fetch (v5) ===');
   console.log(`Started: ${new Date().toISOString()}`);
 
   const now            = new Date();
@@ -171,18 +161,13 @@ async function main() {
   console.log(`Processing ${activeQuarters.length} active quarter(s); skipping ${futureQuarters.length} future quarter(s).`);
 
   const results = [];
-
   for (let i = 0; i < activeQuarters.length; i++) {
     const result = await processQuarter(activeQuarters[i]);
     results.push(result);
     if (i < activeQuarters.length - 1) await sleep(3000);
   }
-
   for (const q of futureQuarters) {
-    results.push({
-      label: q.label, display: q.display, start: q.start, end: q.end,
-      slots: [], cancelledCount: 0,
-    });
+    results.push({ label: q.label, display: q.display, start: q.start, end: q.end, slots: [], cancelledCount: 0 });
   }
 
   const output = { generated_at: new Date().toISOString(), quarters: results };
