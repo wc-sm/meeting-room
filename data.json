@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T10:30:39.679Z",
+  "generated_at": "2026-06-03T15:24:30.985Z",
   "quarters": [
     {
       "label": "Q1 2026",
@@ -478,11 +478,6 @@
           "noShow": false
         },
         {
-          "start": "2026-06-03T15:00:00.000000Z",
-          "end": "2026-06-03T15:30:00.000000Z",
-          "noShow": false
-        },
-        {
           "start": "2026-06-03T15:30:00.000000Z",
           "end": "2026-06-03T16:00:00.000000Z",
           "noShow": false
@@ -498,7 +493,7 @@
           "noShow": false
         }
       ],
-      "cancelledCount": 7
+      "cancelledCount": 8
     },
     {
       "label": "Q2 2026",
